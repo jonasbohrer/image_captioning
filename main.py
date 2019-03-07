@@ -57,13 +57,45 @@ def main(argv):
             tf.get_default_graph().finalize()
             model.eval(sess, coco, data, vocabulary)
 
-        else:
+        elif FLAGS.phase == 'test':
             # testing phase
             data, vocabulary = prepare_test_data(config)
             model = CaptionGenerator(config)
             model.load(sess, FLAGS.model_file)
             tf.get_default_graph().finalize()
             model.test(sess, data, vocabulary)
+
+        else:
+            # save to tfserving
+            from tensorflow.saved_model import builder as saved_model_builder
+            from tensorflow.saved_model.signature_def_utils import predict_signature_def
+            from tensorflow.saved_model import tag_constants
+
+            data, vocabulary = prepare_test_data(config)
+
+            model = CaptionGenerator(config)
+            model.load(sess, FLAGS.model_file)
+
+            writer = tf.summary.FileWriter('logs', sess.graph)
+            writer.close()
+
+            builder = saved_model_builder.SavedModelBuilder('./tfserving/models/v1.pb')
+
+            # Create prediction signature to be used by TensorFlow Serving Predict API
+            input_tensor = tf.get_default_graph().get_tensor_by_name('Placeholder:0')
+            output_tensor = tf.get_default_graph().get_tensor_by_name('Placeholder_4:0')
+            tensor_info_x = tf.saved_model.utils.build_tensor_info(input_tensor)
+            tensor_info_y = tf.saved_model.utils.build_tensor_info(output_tensor)
+            signature = (tf.saved_model.signature_def_utils.build_signature_def(
+                                    inputs={'images': tensor_info_x},
+                                    outputs={'scores': tensor_info_y},
+                                    method_name= tf.saved_model.signature_constants.PREDICT_METHOD_NAME))
+            
+            # Save the meta graph and the variables
+            builder.add_meta_graph_and_variables(sess=sess, tags=[tag_constants.SERVING],
+                                                    signature_def_map={"predict": signature})
+
+            builder.save()
 
 if __name__ == '__main__':
     tf.app.run()

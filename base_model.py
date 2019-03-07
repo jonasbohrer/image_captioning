@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import cPickle as pickle
+import pickle as pickle
 import copy
 import json
 from tqdm import tqdm
@@ -101,6 +101,9 @@ class BaseModel(object):
         json.dump(results, fp)
         fp.close()
 
+        """pd_results = pd.DataFrame(results)
+        pd_results.to_json(config.eval_result_file)"""
+
         # Evaluate these captions
         eval_result_coco = eval_gt_coco.loadRes(config.eval_result_file)
         scorer = COCOEvalCap(eval_gt_coco, eval_result_coco)
@@ -135,7 +138,8 @@ class BaseModel(object):
                 # Save the result in an image file
                 image_file = batch[l]
                 image_name = image_file.split(os.sep)[-1]
-                image_name = os.path.splitext(image_name)[0]
+                image_name = os.path.splitext(image_name)[0]    
+                image_name = image_name.split(config.test_image_dir)[-1]
                 img = plt.imread(image_file)
                 plt.imshow(img)
                 plt.axis('off')
@@ -259,7 +263,7 @@ class BaseModel(object):
                                      str(global_step)+".npy")
 
         print("Loading the model from %s..." %save_path)
-        data_dict = np.load(save_path).item()
+        data_dict = np.load(save_path, encoding='latin1').item()
         count = 0
         for v in tqdm(tf.global_variables()):
             if v.name in data_dict.keys():
@@ -270,7 +274,7 @@ class BaseModel(object):
     def load_cnn(self, session, data_path, ignore_missing=True):
         """ Load a pretrained CNN model. """
         print("Loading the CNN from %s..." %data_path)
-        data_dict = np.load(data_path).item()
+        data_dict = np.load(data_path, encoding='latin1').item()
         count = 0
         for op_name in tqdm(data_dict):
             with tf.variable_scope(op_name, reuse = True):
